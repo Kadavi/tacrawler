@@ -69,7 +69,7 @@ if (stage === 3) {
               two.save((error) => {
                 if (error) {
                   console.log(`ID failed to save: ${two.pid}`);
-                  return tryComplete(`ID failed to save: ${two.pid}`);
+                  return tryComplete();
                 }
 
                 i++;
