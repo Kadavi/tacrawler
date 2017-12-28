@@ -1,0 +1,20 @@
+{
+  "name": "secondchance",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.6.0",
+    "cheerio-httpcli": "^0.7.2",
+    "lodash": "^4.17.4",
+    "mongoose": "^4.13.7",
+    "request": "^2.83.0",
+    "scrape-it": "^4.1.2",
+    "scrapist": "^0.1.0"
+  }
+}
