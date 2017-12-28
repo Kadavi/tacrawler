@@ -29,10 +29,10 @@ if (stage === 3) {
 
       var i = 0;
       // loop through each city in region
-      async.mapLimit(one.urls, 3, (url, complete2) => {
+      async.mapLimit(one.urls, 10, (url, complete2) => {
         url = `https://www.tripadvisor.cn${url.replace('/Tourism-', '/Attractions-')}`;
 
-        StageTwo.findOne({ pid: url }).exec((error, two) => {
+        StageTwo.findOne({ pid: url }).select('pid').exec((error, two) => {
           if (two) {
             // continue if already exists
             i++;
