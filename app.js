@@ -8,7 +8,7 @@ const scrapeIt = require("scrape-it");
 const StageOne = require("./StageOne");
 const StageTwo = require("./StageTwo");
 
-var stage = 3;
+var stage = 2;
 
 if (stage === 4) {
   StageTwo.find({ urls: { $size: 0 } }).exec((error, twos) => {
@@ -23,7 +23,7 @@ if (stage === 4) {
 if (stage === 3) {
   StageOne.find({ gotPaginationAmount: false })
     .skip(process.env.SKIP ? parseInt(process.env.SKIP) : 0)
-    .limit(3)
+    .limit(2)
     .exec((error, ones) => {
       var j = 0;
 
