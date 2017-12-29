@@ -1,9 +1,10 @@
 const mongoose = require("mongoose");
-//mongoose.connect('mongodb://root:123456@localhost:27017/Crawl?authSource=admin');
-mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=admin'); //crowtripper
+mongoose.connect('mongodb://root:123456@localhost:27017/Crawl?authSource=admin');
+//mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=admin'); //crowtripper
 
 const _ = require("lodash");
 const async = require("async");
+const cheerio = require('cheerio');
 const scrapeIt = require("scrape-it");
 const Proxie = require("./Proxie");
 const StageOne = require("./StageOne");
@@ -23,10 +24,12 @@ if (stage === 4) {
   console.log('preparing to fetch stagetwos');
   StageTwo.find({ gotLinksForPage: false }).exec((error, twos) => {
     console.log('got stagetwos');
-    
+    var j = 0;
+
     async.mapLimit(twos, 1, (two, completeTwo) => {
       var urls = [];
       var times = [];
+      var k = 0;
 
       for (var i = 0; i < two.amount; i++) {
         times.push(i);
@@ -42,26 +45,31 @@ if (stage === 4) {
           }
         }, (tryComplete, nothing) => {
 
-          Proxie.find().exec((error, proxies) => {
-            var proxy = proxies[Math.floor(Math.random() * proxies.length)];
-            
+          //Proxie.find().exec((error, proxies) => {
+          //var proxy = proxies[Math.floor(Math.random() * proxies.length)];
 
-            request
-              .get(target)
-              .proxy(`http://${proxy.ip}:${proxy.port}`)
-              .end((err, res) => {
-                if (err) {
-                  console.log(`fetch error for: ${target}`);
-                  tryComplete(`fetch error for: ${target}`);
-                } else {
-                  console.log(res.status, res.headers);
-                  console.log(res.body);
 
-                  tryComplete();
-                }
-              });
+          request
+            .get(target)
+            //.proxy(`http://${proxy.ip}:${proxy.port}`)
+            .end((err, res) => {
+              if (err || !res.text) {
+                console.log(`fetch error for: ${target}`);
+                tryComplete(`fetch error for: ${target}`);
+              } else {
+                const $ = cheerio.load(res.text);
 
-          });
+                var links = $('.display_text.ui_button.original').parents('.attraction_element').find('.listing_title a[target="_blank"]');
+
+                urls = urls.concat(_.map(links, link => link.attribs.href));
+                k++;
+                console.log(`Page ${k}/${times.length}`);
+
+                tryComplete();
+              }
+            });
+
+          //});
 
         }, (tryError, tryResult) => {
           completePage();
@@ -70,10 +78,16 @@ if (stage === 4) {
 
       }, (errorTwos, resultTwos) => {
 
-        completeTwo();
-        console.log(`All urls are done for: ${two.pid}`);
-      });
+        two.urls = _.uniq(urls);
+        two.gotLinksForPage = true;
 
+        two.save(error => {
+          j++;
+          console.log(`All urls are done for: ${two.pid}, length: ${urls.length}, progress: ${j}/${twos.length}`);
+          completeTwo();
+        });
+        
+      });
 
     }, (errorTwos, resultTwos) => {
 
