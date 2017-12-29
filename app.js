@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-mongoose.connect('mongodb://root:123456@localhost:27017/Crawl?authSource=admin');
-//mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=admin'); //crowtripper
+//mongoose.connect('mongodb://root:123456@localhost:27017/Crawl?authSource=admin');
+mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=admin'); //crowtripper
 
 const _ = require("lodash");
 const async = require("async");
