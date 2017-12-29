@@ -20,8 +20,10 @@ require('superagent-proxy')(request);
 var stage = 4;
 
 if (stage === 4) {
+  console.log('preparing to fetch stagetwos');
   StageTwo.find({ gotLinksForPage: false }).exec((error, twos) => {
-
+    console.log('got stagetwos');
+    
     async.mapLimit(twos, 1, (two, completeTwo) => {
       var urls = [];
       var times = [];
