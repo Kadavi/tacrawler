@@ -21,7 +21,7 @@ if (stage === 4) {
 }
 
 if (stage === 3) {
-  StageOne.find().exec((error, ones) => {
+  StageOne.find({gotPaginationAmount: false}).exec((error, ones) => {
     var j = 0;
 
     // loop through region's IDs
@@ -92,8 +92,12 @@ if (stage === 3) {
       }, (error2, result2) => {
         j++;
 
-        console.log(`${j}/${ones.length} stageones complete.`);
-        complete();
+        one.gotPaginationAmount = true;
+
+        one.save((error) => {
+          console.log(`${j}/${ones.length} stageones complete.`);
+          complete();
+        });
       });
 
     }, (error, result) => {
