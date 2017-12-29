@@ -21,91 +21,94 @@ if (stage === 4) {
 }
 
 if (stage === 3) {
-  StageOne.find({gotPaginationAmount: false}).skip(parseInt(process.env.SKIP) || 0).limit(2).exec((error, ones) => {
-    var j = 0;
+  StageOne.find({ gotPaginationAmount: false })
+    // .skip(process.env.SKIP ? parseInt(process.env.SKIP) : 0)
+    // .limit(2)
+    .exec((error, ones) => {
+      var j = 0;
 
-    // loop through region's IDs
-    async.mapLimit(ones, 1, (one, complete) => {
+      // loop through region's IDs
+      async.mapLimit(ones, 1, (one, complete) => {
 
-      var i = 0;
-      // loop through each city in region
-      async.mapLimit(one.urls, 5, (url, complete2) => {
-        url = `https://www.tripadvisor.cn${url.replace('/Tourism-', '/Attractions-')}`;
+        var i = 0;
+        // loop through each city in region
+        async.mapLimit(one.urls, 5, (url, complete2) => {
+          url = `https://www.tripadvisor.cn${url.replace('/Tourism-', '/Attractions-')}`;
 
-        StageTwo.findOne({ pid: url }).select('pid').exec((error, two) => {
-          if (two) {
-            // continue if already exists
-            i++;
-            console.log(`${url} skipped`);
-            return complete2();
-          }
-
-          async.retry({
-            times: Number.MAX_VALUE,
-            interval: function (retryCount) {
-              return 50 * Math.pow(2, retryCount);
+          StageTwo.findOne({ pid: url }).select('pid').exec((error, two) => {
+            if (two) {
+              // continue if already exists
+              i++;
+              console.log(`${url} skipped`);
+              return complete2();
             }
-          }, (tryComplete, nothing) => {
 
-            scrapeIt(url, {
-              forbidden: {
-                selector: 'h1',
-                how: 'html'
-              },
-              amount: {
-                selector: '.pageNumbers',
-                convert: (html, $node) => parseInt($node.find('.pageNum.taLnk').last().attr('data-page-number'))
+            async.retry({
+              times: Number.MAX_VALUE,
+              interval: function (retryCount) {
+                return 50 * Math.pow(2, retryCount);
               }
-            }).then(page => {
-              if (page.forbidden === 'Forbidden') {
-                console.log(`Forbidden detected: ${url}`);
-                return tryComplete(`Forbidden detected: ${url}`);
-              }
+            }, (tryComplete, nothing) => {
 
-              two = new StageTwo();
-              two.pid = url;
-              two.amount = page.amount || 1;
+              scrapeIt(url, {
+                forbidden: {
+                  selector: 'h1',
+                  how: 'html'
+                },
+                amount: {
+                  selector: '.pageNumbers',
+                  convert: (html, $node) => parseInt($node.find('.pageNum.taLnk').last().attr('data-page-number'))
+                }
+              }).then(page => {
+                if (page.forbidden === 'Forbidden') {
+                  console.log(`Forbidden detected: ${url}`);
+                  return tryComplete(`Forbidden detected: ${url}`);
+                }
 
-              two.save((error) => {
-                // if (error) {
-                //   console.log(`ID failed to save: ${two.pid}`);
-                //   return tryComplete();
-                // }
+                two = new StageTwo();
+                two.pid = url;
+                two.amount = page.amount || 1;
 
-                i++;
+                two.save((error) => {
+                  // if (error) {
+                  //   console.log(`ID failed to save: ${two.pid}`);
+                  //   return tryComplete();
+                  // }
 
-                console.log(`${i}/${one.urls.length} urls complete.`);
-                tryComplete();
+                  i++;
+
+                  console.log(`${i}/${one.urls.length} urls complete.`);
+                  tryComplete();
+                });
+
+
+              }, error => {
+                console.log(`ID failed network: ${url}`);
+                tryComplete(`ID failed network: ${url}`);
               });
-
-
-            }, error => {
-              console.log(`ID failed network: ${url}`);
-              tryComplete(`ID failed network: ${url}`);
+            }, (tryError, tryResult) => {
+              complete2();
             });
-          }, (tryError, tryResult) => {
-            complete2();
+
           });
 
+        }, (error2, result2) => {
+          j++;
+
+          one.gotPaginationAmount = true;
+
+          one.save((error) => {
+            console.log(`${j}/${ones.length} stageones complete.`);
+            complete();
+          });
         });
 
-      }, (error2, result2) => {
-        j++;
+      }, (error, result) => {
 
-        one.gotPaginationAmount = true;
-
-        one.save((error) => {
-          console.log(`${j}/${ones.length} stageones complete.`);
-          complete();
-        });
       });
 
-    }, (error, result) => {
 
     });
-
-
-  });
 }
 
 if (stage === 22) {
