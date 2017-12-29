@@ -36,7 +36,7 @@ if (stage === 3) {
           if (two) {
             // continue if already exists
             i++;
-            //console.log(`${url} skipped`);
+            console.log(`${url} skipped`);
             return complete2();
           }
 
