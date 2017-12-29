@@ -22,8 +22,8 @@ if (stage === 4) {
 
 if (stage === 3) {
   StageOne.find({ gotPaginationAmount: false })
-    // .skip(process.env.SKIP ? parseInt(process.env.SKIP) : 0)
-    // .limit(2)
+    .skip(process.env.SKIP ? parseInt(process.env.SKIP) : 0)
+    .limit(3)
     .exec((error, ones) => {
       var j = 0;
 
