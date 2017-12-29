@@ -8,7 +8,7 @@ const scrapeIt = require("scrape-it");
 const StageOne = require("./StageOne");
 const StageTwo = require("./StageTwo");
 
-var stage = 2;
+var stage = 3;
 
 if (stage === 4) {
   StageTwo.find({ urls: { $size: 0 } }).exec((error, twos) => {
