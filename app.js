@@ -20,8 +20,10 @@ if (stage === 4) {
 
 }
 
+process.env.SKIP = 5;
+
 if (stage === 3) {
-  StageOne.find({gotPaginationAmount: false}).skip(process.env.SKIP || 0).limit(5).exec((error, ones) => {
+  StageOne.find({gotPaginationAmount: false}).skip(parseInt(process.env.SKIP) || 0).limit(5).exec((error, ones) => {
     var j = 0;
 
     // loop through region's IDs
