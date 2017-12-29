@@ -29,7 +29,7 @@ if (stage === 3) {
 
       var i = 0;
       // loop through each city in region
-      async.mapLimit(one.urls, 1, (url, complete2) => {
+      async.mapLimit(one.urls, 5, (url, complete2) => {
         url = `https://www.tripadvisor.cn${url.replace('/Tourism-', '/Attractions-')}`;
 
         StageTwo.findOne({ pid: url }).select('pid').exec((error, two) => {
