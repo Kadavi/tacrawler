@@ -15,6 +15,7 @@
     "mongoose": "^4.13.7",
     "request": "^2.83.0",
     "scrape-it": "^4.1.2",
-    "scrapist": "^0.1.0"
+    "superagent": "^3.8.2",
+    "superagent-proxy": "^1.0.2"
   }
 }

@@ -5,13 +5,84 @@ mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=
 const _ = require("lodash");
 const async = require("async");
 const scrapeIt = require("scrape-it");
+const Proxie = require("./Proxie");
 const StageOne = require("./StageOne");
 const StageTwo = require("./StageTwo");
+const StageThree = require("./StageThree");
 
-var stage = 3;
+var request = require('superagent');
+
+require('superagent-proxy')(request);
+
+// Total paginations: 52535
+// Total max places: 1576050
+
+var stage = 4;
 
 if (stage === 4) {
-  StageTwo.find({ urls: { $size: 0 } }).exec((error, twos) => {
+  StageTwo.find({ gotLinksForPage: false }).exec((error, twos) => {
+
+    async.mapLimit(twos, 1, (two, completeTwo) => {
+      var urls = [];
+      var times = [];
+
+      for (var i = 0; i < two.amount; i++) {
+        times.push(i);
+      }
+
+      async.mapLimit(times, 1, (time, completePage) => {
+        var target = two.pid.replace('Attractions-', `Attractions-oa${time * 30}-`);
+
+        async.retry({
+          times: Number.MAX_VALUE,
+          interval: function (retryCount) {
+            return 50 * Math.pow(2, retryCount);
+          }
+        }, (tryComplete, nothing) => {
+
+          Proxie.find().exec((error, proxies) => {
+            var proxy = proxies[Math.floor(Math.random() * proxies.length)];
+            
+
+            request
+              .get(target)
+              .proxy(`http://${proxy.ip}:${proxy.port}`)
+              .end((err, res) => {
+                if (err) {
+                  console.log(`fetch error for: ${target}`);
+                  tryComplete(`fetch error for: ${target}`);
+                } else {
+                  console.log(res.status, res.headers);
+                  console.log(res.body);
+
+                  tryComplete();
+                }
+              });
+
+          });
+
+        }, (tryError, tryResult) => {
+          completePage();
+        });
+
+
+      }, (errorTwos, resultTwos) => {
+
+        completeTwo();
+        console.log(`All urls are done for: ${two.pid}`);
+      });
+
+
+    }, (errorTwos, resultTwos) => {
+
+      console.log('done');
+    });
+
+
+
+
+
+
 
 
   });
@@ -22,8 +93,8 @@ if (stage === 4) {
 
 if (stage === 3) {
   StageOne.find({ gotPaginationAmount: false })
-    .skip(process.env.SKIP ? parseInt(process.env.SKIP) : 0)
-    .limit(2)
+    // .skip(process.env.SKIP ? parseInt(process.env.SKIP) : 0)
+    // .limit(2)
     .exec((error, ones) => {
       var j = 0;
 
@@ -32,14 +103,14 @@ if (stage === 3) {
 
         var i = 0;
         // loop through each city in region
-        async.mapLimit(one.urls, 1, (url, complete2) => {
+        async.mapLimit(one.urls, 5, (url, complete2) => {
           url = `https://www.tripadvisor.cn${url.replace('/Tourism-', '/Attractions-')}`;
 
           StageTwo.findOne({ pid: url }).select('pid').exec((error, two) => {
             if (two) {
               // continue if already exists
               i++;
-              console.log(`${url} skipped`);
+              //console.log(`${url} skipped`);
               return complete2();
             }
 
