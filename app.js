@@ -1,7 +1,8 @@
 const mongoose = require("mongoose");
-//mongoose.connect('mongodb://root:123456@localhost:27017/Crawl?authSource=admin');
-mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=admin'); //crowtripper
+mongoose.connect('mongodb://root:123456@localhost:27017/Scoped?authSource=admin');
+//mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=admin'); //crowtripper
 
+const Base64 = require('js-base64').Base64;
 const _ = require("lodash");
 const async = require("async");
 const cheerio = require('cheerio');
@@ -10,15 +11,337 @@ const Proxie = require("./Proxie");
 const StageOne = require("./StageOne");
 const StageTwo = require("./StageTwo");
 const StageThree = require("./StageThree");
+const Place = require("./Place");
 
 var request = require('superagent');
 
-require('superagent-proxy')(request);
+//require('superagent-proxy')(request);
 
-// Total paginations: 52535
-// Total max places: 1576050
+// var idList = [32655, 33116, 45963, 60750, 60763, 60745, 35805, 60795, 60878, 28970]; // 10 USA cities
 
-var stage = 4;
+var stage = 5;
+
+if (stage === 5) {
+  StageTwo.find({ placesCollected: false }).exec((error, twos) => {
+    var j = 0;
+
+    async.mapLimit(twos, 1, (two, completeTwo) => {
+      var i = 0;
+
+      async.mapLimit(two.urls, 1, (url, completeUrl) => {
+        Place.findOne({ source: url }).select('source').exec((error, place) => {
+          if (place) {
+            i++;
+
+            console.log(`Skipped ${url}, progress: ${i}/${two.urls.length}`);
+
+            return completeUrl();
+          }
+
+          place = new Place({
+            photos: [],
+            name: {
+              cn: '',
+              en: ''
+            },
+            tags: {
+              cn: [],
+              en: []
+            },
+            rating: '5',
+            category: 'recreation',
+            description: {
+              cn: '',
+              en: ''
+            },
+            location: {
+              address: {
+                cn: '',
+                en: ''
+              },
+              city: {
+                cn: '',
+                en: ''
+              },
+              province: {
+                cn: '',
+                en: ''
+              },
+              postal: '',
+              country: {
+                cn: '',
+                en: ''
+              },
+              continent: {
+                cn: '',
+                en: ''
+              },
+              coordinates: [-20.0, 15.0]
+            },
+            phone: '',
+            email: '',
+            website: '',
+            playtime: '2',
+            prices: [],
+            hours: {
+              monday: {
+                start: '0:00',
+                end: '0:00'
+              },
+              tuesday: {
+                start: '0:00',
+                end: '0:00'
+              },
+              wednesday: {
+                start: '0:00',
+                end: '0:00'
+              },
+              thursday: {
+                start: '0:00',
+                end: '0:00'
+              },
+              friday: {
+                start: '0:00',
+                end: '0:00'
+              },
+              saturday: {
+                start: '0:00',
+                end: '0:00'
+              },
+              sunday: {
+                start: '0:00',
+                end: '0:00'
+              }
+            },
+            source: url
+          });
+
+          async.retry({
+            times: Number.MAX_VALUE,
+            interval: function (retryCount) {
+              return 50 * Math.pow(2, retryCount);
+            }
+          }, (tryComplete, nothing) => {
+            Promise.all([
+              new Promise((resolve, reject) => {
+                var target = `https://www.tripadvisor.cn${url}`;
+
+                request
+                  .get(target)
+                  .end((err, res) => {
+                    if (err || !res.text) {
+                      console.log(`fetch error for: ${target}`);
+                      return reject(`fetch error for: ${target}`);
+                    } else {
+                      const $ = cheerio.load(res.text);
+
+                      // name
+                      var name = $('#HEADING.heading_title');
+                      var english = name.find('.altHead').text();
+                      var chinese = '';
+
+                      if (english) {
+                        name.find('.altHead').remove();
+                        chinese = name.text();
+                      } else {
+                        english = name.text();
+                      }
+
+                      var photoElements = $('[data-prwidget-name="common_centered_image"] img');
+
+                      // photos
+                      var photos = [];
+                      photoElements.each((i, ele) => {
+                        var source = ele.attribs['data-src'] || ele.attribs['src'];
+
+                        if (source.length && !source.includes('x.gif')) {
+                          photos.push(source);
+                        }
+                      });
+
+                      //tags
+                      var tagElements = $('.attraction_details .detail a');
+
+                      var tags = [];
+                      tagElements.each((i, ele) => {
+                        var source = $(ele).text();
+
+                        if (source.length) {
+                          tags.push(source);
+                        }
+                      });
+
+                      var emailExists = $('.blEntry.email')[0];
+                      var rawEmail = null;
+
+                      if (emailExists) {
+                        rawEmail = emailExists.attribs.onclick.replace(`ta.prwidgets.call('handlers.onEmailClicked', event, this, '`, '').replace("')", "");
+                      }
+                      var email = '';
+
+                      if (rawEmail && rawEmail.length) {
+                        email = Base64.decode(rawEmail);
+                      }
+
+                      place.name.en = english;
+                      place.name.cn = chinese;
+                      place.photos = photos;
+                      place.email = email;
+                      place.phone = $('.directContactInfo').text();
+                      place.rating = $('.overallRating').text().trim();
+                      place.tags.cn = tags;
+                      place.playtime = $('.detail_section.duration').text();
+                      place.description.cn = $('.description .text').text();
+                      place.location.address.cn = $($('.address')[0]).text();
+
+                      return resolve();
+                    }
+                  });
+              }),
+              new Promise((resolve, reject) => {
+                var target = `https://www.tripadvisor.com${url}`;
+
+                request
+                  .get(target)
+                  .end((err, res) => {
+                    if (err || !res.text) {
+                      console.log(`fetch error for: ${target}`);
+                      return reject(`fetch error for: ${target}`);
+                    } else {
+                      const $ = cheerio.load(res.text);
+
+                      //tags
+                      var tagElements = $('.attraction_details .detail a');
+
+                      var tags = [];
+                      tagElements.each((i, ele) => {
+                        var source = $(ele).text();
+
+                        if (source.length) {
+                          tags.push(source);
+                        }
+                      });
+
+                      place.tags.en = tags;
+                      place.description.en = $('.description .text').text();
+                      place.location.address.en = $($('.address')[0]).text();
+
+                      return resolve();
+                    }
+                  });
+              }),
+              new Promise((resolve, reject) => {
+                var target = `https://www.tripadvisor.cn${url.replace('Attraction_Review-', 'UpdateListing-')}`;
+
+                request
+                  .get(target)
+                  .end((err, res) => {
+                    if (err || !res.text) {
+                      console.log(`fetch error for: ${target}`);
+                      return reject(`fetch error for: ${target}`);
+                    } else {
+                      const $ = cheerio.load(res.text);
+
+                      var locs = $('meta[name=location]')[0].attribs['content'].split(';');
+
+                      var parsed = {};
+
+                      var coordinates = [-20.0, 15.0];
+
+                      locs.forEach(loc => {
+                        var [key, value] = loc.split('=');
+
+                        if (key === 'coord') {
+                          coordinates = value.split(',');
+                          coordinates = [parseFloat(coordinates[0]), parseFloat(coordinates[1])];
+                        } else {
+                          parsed[key] = value;
+                        }
+                      });
+
+                      for (var key in parsed) {
+                        place.location[key].cn = parsed[key];
+                      }
+
+                      place.location.coordinates = coordinates;
+
+                      place.website = $('#website').val();
+
+                      place.location.postal = $('#postal').val();
+
+                      var rows = $('.hours table tr:not(.sep)');
+                      var hours = {};
+
+                      rows.each((i, row) => {
+                        var day = $(row).find('th').text();
+
+                        if (day.includes('一')) {
+                          day = 'monday';
+                        } else if (day.includes('二')) {
+                          day = 'tuesday';
+                        } else if (day.includes('三')) {
+                          day = 'wednesday';
+                        } else if (day.includes('四')) {
+                          day = 'thursday';
+                        } else if (day.includes('五')) {
+                          day = 'friday';
+                        } else if (day.includes('六')) {
+                          day = 'saturday';
+                        } else if (day.includes('日')) {
+                          day = 'sunday';
+                        }
+
+                        if ($(row).find('.closed').length) {
+                          hours[day] = { start: '0:00', end: '0:00' };
+                        } else {
+                          hours[day] = { start: $($(row).find('td')[0]).text(), end: $($(row).find('td')[2]).text() };
+                        }
+                      });
+
+                      for (var weekday in hours) {
+                        place.hours[weekday] = hours[weekday];
+                      }
+
+                      return resolve();
+                    }
+                  });
+              })
+            ]).then(() => {
+              place.save((error) => {
+                if (error) {
+                  console.log(error);
+                  return tryComplete(error);
+                }
+
+                tryComplete();
+              });
+            }, (error) => {
+              tryComplete(error);
+            });
+          }, (tryError, tryResult) => {
+            i++;
+
+            console.log(`Completed URL ${url}, progress: ${i}/${two.urls.length}`);
+
+            return completeUrl();
+          });
+
+        });
+      }, (error, result) => {
+        two.placesCollected = true;
+        two.save((error) => {
+          j++;
+
+          console.log(`Completed two, progress: ${j}/${twos.length}`);
+
+          completeTwo();
+        });
+      });
+    }, (error, result) => {
+      console.log('done');
+    });
+  });
+}
 
 if (stage === 4) {
   console.log('preparing to fetch stagetwos');
@@ -47,7 +370,6 @@ if (stage === 4) {
 
           //Proxie.find().exec((error, proxies) => {
           //var proxy = proxies[Math.floor(Math.random() * proxies.length)];
-
 
           request
             .get(target)
@@ -86,25 +408,11 @@ if (stage === 4) {
           console.log(`All urls are done for: ${two.pid}, length: ${urls.length}, progress: ${j}/${twos.length}`);
           completeTwo();
         });
-        
       });
-
     }, (errorTwos, resultTwos) => {
-
       console.log('done');
     });
-
-
-
-
-
-
-
-
   });
-
-
-
 }
 
 if (stage === 3) {
@@ -314,7 +622,7 @@ if (stage === 2) {
 }
 
 if (stage === 1) {
-  var idList = _.uniq([2, 4, 8, 293920, 293915, 293916, 293917, 298184, 294232, 298564, 293928, 293921, 298566, 294262, 294265, 294211, 293913, 294225, 297701, 294245, 298465, 187070, 187147, 186216, 186338, 187427, 187497, 187768, 187791, 187514, 274684, 274707, 187849, 187895, 188553, 188590, 188045, 188096, 190410, 190454, 191, 32655, 60763, 45963, 60713, 29222, 153339, 154943, 155019, 154910, 60878, 35805, 60745, 255055, 255060, 255100, 1487275, 60716, 255104, 255122, 255106, 255118, 255337, 612500, 255068, 255069, 3830709, 294012, 295424, 294266, 188634, 291959, 294280, 293939, 189512, 294200, 186217, 294331, 187275, 189398, 294217, 274881, 293860, 186591, 664891, 293951, 293953, 293816, 150768, 293889, 189100, 294459, 186485, 293740, 294196, 293961, 293910, 293969]);
+  var idList = _.uniq([659499, 293933, 293959, 293844, 295117, 294245, 294196, 294443, 293943, 293939, 293947, 293949, 293953, 293951, 293931, 293935, 293955, 294190, 293889, 294232, 293961, 293915, 293910, 293963, 293965, 293937, 293967, 294262, 294225, 670819, 293860, 293921, 294211, 186591, 274952, 190410, 294451, 188634, 189952, 274723, 189512, 187275, 294459, 187070, 189896, 188553, 274684, 294453, 274960, 274947, 294457, 190340, 190311, 190405, 190455, 189100, 189806, 188045, 294471, 190372, 274862, 274922, 293969, 294473, 187427, 189398, 274881, 187768, 186216, 294266, 294079, 294479, 294280, 294311, 294071, 291959, 294307, 316040, 294270, 295111, 294073, 291982, 292002, 294077, 294075, 292016, 147237, 153339, 294318, 191, 150768, 294477, 294475, 183815, 294081, 294324, 294064, 294291, 255055, 294115, 294338, 255074, 309679, 294331, 255337, 294121, 294328, 294144, 1487275, 301392, 60665, 294198, 294127, 294131, 294135, 673774, 60716, 294137, 294139, 294141, 295114, 294481, 294143, 60667, 1746897, 294129, 255104, 60666, 293717, 294200, 293790, 293762, 293764, 293766, 293768, 293770, 294437, 293838, 293788, 293774, 293794, 294186, 294188, 293796, 293792, 293786, 293759, 293798, 293800, 293772, 294435, 294206, 294192, 293802, 293804, 293806, 293826, 293828, 293808, 293810, 293812, 293816, 293814, 295116, 294013, 293980, 295416, 294012, 294006, 293986, 297902, 293996, 294005, 294011, 293999, 295424, 294009, 295419, 294008, 294002, 294004, 318895, 298064, 293991, 294010, 298101, 293995, 293983, 294014, 294000, 293998, 293977, 293985, 659499, 293933, 293959, 293844, 295117, 294245, 294196, 294443, 293943, 293939, 293947, 293949, 293953, 293951, 293931, 293935, 293955, 294190, 293889, 294232, 293961, 293915, 293910, 293963, 293965, 293937, 293967, 294262, 294225, 670819, 293860, 293921, 294211, 186591, 274952, 190410, 294451, 188634, 189952, 274723, 189512, 187275, 294459, 187070, 189896, 188553, 274684, 294453, 274960, 274947, 294457, 190340, 190311, 190405, 190455, 189100, 189806, 188045, 294471, 190372, 274862, 274922, 293969, 294473, 187427, 189398, 274881, 187768, 186216, 294266, 294079, 294479, 294280, 294311, 294071, 291959, 294307, 316040, 294270, 295111, 294073, 291982, 292002, 294077, 294075, 292016, 147237, 153339, 294318, 191, 150768, 294477, 294475, 183815, 294081, 294324, 294064, 294291, 255055, 294115, 294338, 255074, 309679, 294331, 255337, 294121, 294328, 294144, 1487275, 301392, 60665, 294198, 294127, 294131, 294135, 673774, 60716, 294137, 294139, 294141, 295114, 294481, 294143, 60667, 1746897, 294129, 255104, 60666, 293717, 294200, 293790, 293762, 293764, 293766, 293768, 293770, 294437, 293838, 293788, 293774, 293794, 294186, 294188, 293796, 293792, 293786, 293759, 293798, 293800, 293772, 294435, 294206, 294192, 293802, 293804, 293806, 293826, 293828, 293808, 293810, 293812, 293816, 293814, 295116, 294013, 293980, 295416, 294012, 294006, 293986, 297902, 293996, 294005, 294011, 293999, 295424, 294009, 295419, 294008, 294002, 294004, 318895, 298064, 293991, 294010, 298101, 293995, 293983, 294014, 294000, 293998, 293977, 293985]);
 
   StageOne.find().exec((error, amounts) => {
     idList = _.filter(idList, (id) => {
@@ -353,20 +661,20 @@ if (stage === 1) {
   });
 }
 
-const http = require('http')
-const port = 8080
+// const http = require('http')
+// const port = 8080
 
-const requestHandler = (request, response) => {
-  console.log(request.url)
-  response.end('Hello Node.js Server!')
-}
+// const requestHandler = (request, response) => {
+//   console.log(request.url)
+//   response.end('Hello Node.js Server!')
+// }
 
-const server = http.createServer(requestHandler)
+// const server = http.createServer(requestHandler)
 
-server.listen(port, (err) => {
-  if (err) {
-    return console.log('something bad happened', err)
-  }
+// server.listen(port, (err) => {
+//   if (err) {
+//     return console.log('something bad happened', err)
+//   }
 
-  console.log(`server is listening on ${port}`)
-})
+//   console.log(`server is listening on ${port}`)
+// })
