@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 //mongoose.connect('mongodb://root:123456@localhost:27017/Scoped?authSource=admin');
-mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Crawl?authSource=admin'); //crowtripper
+mongoose.connect('mongodb://admin:123456@crowtripper.com:27017/Scoped?authSource=admin'); //crowtripper
 
 const Base64 = require('js-base64').Base64;
 const _ = require("lodash");
